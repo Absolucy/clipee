@@ -1,0 +1,10 @@
+[package]
+name = "clipee"
+version = "0.1.0"
+edition = "2021"
+authors = ["Lucy <lucy@absolucy.moe>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Absolucy/clipee"
+
+[workspace]
+members = ["windows"]

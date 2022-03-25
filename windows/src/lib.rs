@@ -9,37 +9,108 @@ use self::{
 	format::ClipboardFormat,
 	lock::LockedPtr,
 };
+use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
 use std::{
+	ops::Deref,
 	path::{Path, PathBuf},
-	sync::atomic::{AtomicU8, Ordering},
+	sync::{Arc, Weak},
 };
-use windows::Win32::{
-	Foundation::{BOOL, HANDLE, HWND, POINT},
-	Graphics::Gdi::{BITMAPINFO, HBITMAP},
-	System::DataExchange::{
-		CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable,
-		OpenClipboard, SetClipboardData,
+use windows::{
+	core::PCWSTR,
+	Win32::{
+		Foundation::{BOOL, HANDLE, HINSTANCE, HWND, POINT},
+		Graphics::Gdi::{BITMAPINFO, HBITMAP},
+		System::DataExchange::{
+			CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable,
+			OpenClipboard, SetClipboardData,
+		},
+		UI::{
+			Shell::DROPFILES,
+			WindowsAndMessaging::{
+				CloseWindow, CreateWindowExW, HMENU, HWND_MESSAGE, WINDOW_EX_STYLE, WINDOW_STYLE,
+			},
+		},
 	},
-	UI::Shell::DROPFILES,
 };
 
-static CLIPBOARD_HANDLE_LOCK: AtomicU8 = AtomicU8::new(0);
+static CLIPBOARD_HANDLE: OnceCell<Mutex<Weak<ClipboardHandleInner>>> = OnceCell::new();
+
+#[derive(Clone)]
+pub struct ClipboardHandle(Arc<ClipboardHandleInner>);
+
+impl ClipboardHandle {
+	pub fn new() -> Result<Self> {
+		match CLIPBOARD_HANDLE.get() {
+			Some(handle) => {
+				let mut handle = handle.lock();
+				match handle.upgrade() {
+					Some(handle) => Ok(ClipboardHandle(handle)),
+					None => {
+						let new_handle = Arc::new(ClipboardHandleInner::new()?);
+						*handle = Arc::downgrade(&new_handle);
+						Ok(ClipboardHandle(new_handle))
+					}
+				}
+			}
+			None => {
+				let handle = Arc::new(ClipboardHandleInner::new()?);
+				CLIPBOARD_HANDLE
+					.set(Mutex::new(Arc::downgrade(&handle)))
+					.unwrap_or_else(|_| unreachable!());
+				Ok(ClipboardHandle(handle))
+			}
+		}
+	}
+}
+
+impl Deref for ClipboardHandle {
+	type Target = ClipboardHandleInner;
+
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
+impl AsRef<ClipboardHandleInner> for ClipboardHandle {
+	fn as_ref(&self) -> &ClipboardHandleInner {
+		&self.0
+	}
+}
 
 /// This is just a type that runs `OpenClipboard` on creation, and `CloseClipboard` on drop.
 /// It's used to ensure that the clipboard is always closed when we're done with it.
 #[derive(Debug)]
-pub struct ClipboardHandle;
+pub struct ClipboardHandleInner {
+	window: HWND,
+}
 
-impl ClipboardHandle {
-	pub fn new() -> Result<Self> {
-		if CLIPBOARD_HANDLE_LOCK.load(Ordering::Relaxed) != 0 {
-			return Err(Error::ClipboardAlreadyOpen);
-		}
-		if !unsafe { OpenClipboard(HWND::default()) }.as_bool() {
+impl ClipboardHandleInner {
+	fn new() -> Result<Self> {
+		static STYLE: &[u16] = &[0x53, 0x74, 0x61, 0x74, 0x69, 0x63, 0x00]; // "Static" + \0
+		let window = unsafe {
+			CreateWindowExW(
+				WINDOW_EX_STYLE::default(),
+				PCWSTR(STYLE.as_ptr()),
+				PCWSTR::default(),
+				WINDOW_STYLE::default(),
+				0,
+				0,
+				0,
+				0,
+				HWND_MESSAGE,
+				HMENU::default(),
+				HINSTANCE::default(),
+				std::ptr::null(),
+			)
+		};
+		if window.is_invalid() {
+			return Err(Error::CreateWindow(WindowsError::from_last_error()));
+		};
+		if !unsafe { OpenClipboard(window) }.as_bool() {
 			return Err(Error::OpenClipboard(WindowsError::from_last_error()));
 		}
-		CLIPBOARD_HANDLE_LOCK.fetch_add(1, Ordering::Relaxed);
-		Ok(Self)
+		Ok(Self { window })
 	}
 
 	pub fn set_string<StringType: ToString>(&self, string: StringType) -> Result<()> {
@@ -179,13 +250,11 @@ impl ClipboardHandle {
 	}
 }
 
-impl Drop for ClipboardHandle {
+impl Drop for ClipboardHandleInner {
 	fn drop(&mut self) {
-		unsafe { CloseClipboard() };
-		assert_eq!(
-			CLIPBOARD_HANDLE_LOCK.fetch_sub(1, Ordering::Relaxed),
-			1,
-			"Something else forcefully grabbed a clipboard handle somehow!"
-		);
+		unsafe {
+			CloseClipboard();
+			CloseWindow(self.window);
+		}
 	}
 }

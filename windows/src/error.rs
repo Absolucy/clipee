@@ -36,6 +36,4 @@ pub enum Error {
 	InvalidString(std::str::Utf8Error),
 	#[error("Failed to create dummy window: {0}")]
 	CreateWindow(WindowsError),
-	#[error("Failed to set up listener on dummy window: {0}")]
-	ListenWindow(WindowsError),
 }

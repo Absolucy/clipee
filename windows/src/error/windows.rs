@@ -18,6 +18,7 @@ use windows::{
 		},
 	},
 };
+use wtf8::Wtf8Buf;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct WindowsError(WIN32_ERROR);
@@ -80,9 +81,10 @@ impl Display for WindowsError {
 			len += 1;
 		}
 		let u16_slice = unsafe { std::slice::from_raw_parts(err_ptr, len) };
-		// Convert the u16 buffer to a String.
-		let string = String::from_utf16(u16_slice)
-			.expect("WINDOWS GAVE US AN INVALID ERROR MESSAGE, OH NO!");
-		write!(f, "{}", string)
+		write!(
+			f,
+			"{}",
+			Wtf8Buf::from_ill_formed_utf16(u16_slice).to_string_lossy()
+		)
 	}
 }

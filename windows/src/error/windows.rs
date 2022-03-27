@@ -27,6 +27,16 @@ impl WindowsError {
 	pub fn from_last_error() -> Self {
 		Self(unsafe { GetLastError() })
 	}
+
+	/// Returns the last error code, or `None` if the last error code is `0`.
+	pub fn try_from_last_error() -> Option<Self> {
+		let last_error = unsafe { GetLastError() };
+		if last_error.is_err() {
+			Some(Self(last_error))
+		} else {
+			None
+		}
+	}
 }
 
 const fn make_lang_id(lang: u32, sublang: u32) -> u32 {

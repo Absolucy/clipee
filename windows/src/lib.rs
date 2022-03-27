@@ -22,8 +22,8 @@ use windows::{
 		Foundation::{BOOL, HANDLE, HINSTANCE, HWND, POINT},
 		Graphics::Gdi::{BITMAPINFO, HBITMAP},
 		System::DataExchange::{
-			CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable,
-			OpenClipboard, SetClipboardData,
+			CloseClipboard, EmptyClipboard, EnumClipboardFormats, GetClipboardData,
+			IsClipboardFormatAvailable, OpenClipboard, SetClipboardData,
 		},
 		UI::{
 			Shell::DROPFILES,
@@ -235,6 +235,24 @@ impl ClipboardHandleInner {
 			return Err(Error::GetClipboard(WindowsError::from_last_error()));
 		}
 		Ok(())
+	}
+
+	pub fn available_formats(&self) -> Result<Vec<ClipboardFormat>> {
+		let mut formats = Vec::<ClipboardFormat>::new();
+		let mut last_format = 0;
+		loop {
+			last_format = unsafe { EnumClipboardFormats(last_format) };
+			if last_format == 0 {
+				match WindowsError::try_from_last_error() {
+					Some(err) => return Err(Error::EnumClipboard(err)),
+					None => break,
+				}
+			}
+			if let Some(format) = ClipboardFormat::try_from_u32(last_format) {
+				formats.push(format);
+			}
+		}
+		Ok(formats)
 	}
 
 	fn is_clipboard_format_available(format: ClipboardFormat) -> bool {

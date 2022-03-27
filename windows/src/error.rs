@@ -36,4 +36,6 @@ pub enum Error {
 	InvalidString(std::str::Utf8Error),
 	#[error("Failed to create dummy window: {0}")]
 	CreateWindow(WindowsError),
+	#[error("Failed to enumerate available clipboard formats: {0}")]
+	EnumClipboard(WindowsError),
 }

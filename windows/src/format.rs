@@ -18,6 +18,20 @@ pub enum ClipboardFormat {
 	UnicodeText,
 }
 
+impl ClipboardFormat {
+	pub fn try_from_u32(format: u32) -> Option<Self> {
+		match CLIPBOARD_FORMATS(format) {
+			CF_TEXT => Some(Self::Text),
+			CF_BITMAP => Some(Self::Bitmap),
+			CF_DIB => Some(Self::BitmapInfo),
+			CF_DIBV5 => Some(Self::BitmapV5),
+			CF_HDROP => Some(Self::DropHandle),
+			CF_UNICODETEXT => Some(Self::UnicodeText),
+			_ => None,
+		}
+	}
+}
+
 impl From<ClipboardFormat> for CLIPBOARD_FORMATS {
 	fn from(format: ClipboardFormat) -> Self {
 		match format {

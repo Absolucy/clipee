@@ -177,10 +177,10 @@ impl ClipboardHandleInner {
 				Some(s) => s,
 				None => continue,
 			};
-			// Reserve enough bytes for the UTF-16 version of this path.
-			list.reserve(path.len() * 2);
+			// Reserve enough bytes for the UTF-16 version of this path, and the null byte.
+			list.reserve((path.len() * 2) + std::mem::size_of::<u16>());
 			path.encode_utf16().for_each(|byte| list.push(byte));
-			// Null-terminated, by the way.;
+			// Null-terminate it.
 			list.push(0);
 		}
 		// The list is double-null-terminated, so we need a SECOND null terminator here!

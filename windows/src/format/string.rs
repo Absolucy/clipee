@@ -19,10 +19,7 @@ pub fn get(handle: HANDLE) -> Result<String> {
 
 pub fn get_unicode(handle: HANDLE) -> Result<String> {
 	let locked_str = unsafe { LockedPtr::<u16>::new(handle) }?;
-	let mut len = 0;
-	while unsafe { *locked_str.as_mut_ptr().add(len) } != 0 {
-		len += 1;
-	}
+	let len = locked_str.size()? / std::mem::size_of::<u16>() - 1;
 	let u16_str = unsafe { std::slice::from_raw_parts(locked_str.as_mut_ptr(), len) };
 	Ok(Wtf8Buf::from_ill_formed_utf16(u16_str).into_string_lossy())
 }

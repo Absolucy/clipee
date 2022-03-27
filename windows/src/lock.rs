@@ -40,6 +40,15 @@ impl<T> LockedPtr<T> {
 		unsafe { Self::new(HANDLE(handle)) }
 	}
 
+	/// Returns the size of the allocation, in bytes.
+	pub fn size(&self) -> Result<usize> {
+		let alloc_size = unsafe { GlobalSize(self.lock) };
+		if alloc_size == 0 {
+			return Err(Error::InvalidObject(WindowsError::from_last_error()));
+		}
+		Ok(alloc_size)
+	}
+
 	// Seperate function so we can have the #[cold] attribute to tell LLVM "ay this will probably never run"
 	#[cold]
 	fn panic_if_invalid_size(alloc_size: usize) {

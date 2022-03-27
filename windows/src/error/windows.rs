@@ -13,7 +13,7 @@ use windows::{
 				FormatMessageW, FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_SYSTEM,
 				FORMAT_MESSAGE_IGNORE_INSERTS,
 			},
-			Memory::LocalFree,
+			Memory::{LocalFree, LocalSize},
 			SystemServices::{LANG_NEUTRAL, SUBLANG_DEFAULT},
 		},
 	},
@@ -76,10 +76,7 @@ impl Display for WindowsError {
 		// A defer will run when the function exits, or even if it panics!
 		scopeguard::defer! { unsafe { LocalFree(err_ptr as isize); } };
 		// Get the length of the u16 buffer.
-		let mut len = 0;
-		while unsafe { *err_ptr.add(len + 1) } != 0 {
-			len += 1;
-		}
+		let len = unsafe { LocalSize(err_ptr as isize) } / std::mem::size_of::<u16>() - 1;
 		let u16_slice = unsafe { std::slice::from_raw_parts(err_ptr, len) };
 		write!(
 			f,

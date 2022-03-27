@@ -219,15 +219,13 @@ impl ClipboardHandleInner {
 	pub fn image(&self) -> Result<Option<image::RgbImage>> {
 		if !Self::is_clipboard_format_available(ClipboardFormat::Bitmap)
 			|| !Self::is_clipboard_format_available(ClipboardFormat::BitmapInfo)
-			|| !Self::is_clipboard_format_available(ClipboardFormat::BitmapV5)
 		{
 			return Ok(None);
 		}
 		let hbitmap = Self::get_clipboard_data(ClipboardFormat::Bitmap).map(|h| HBITMAP(h.0))?;
 		let bitmap_info = Self::get_clipboard_data(ClipboardFormat::BitmapInfo)
 			.and_then(|handle| unsafe { LockedPtr::<BITMAPINFO>::new(handle) })?;
-		let header_handle = Self::get_clipboard_data(ClipboardFormat::BitmapV5)?;
-		format::bitmap::get(hbitmap, header_handle, bitmap_info).map(Some)
+		format::bitmap::get(hbitmap, bitmap_info).map(Some)
 	}
 
 	pub fn empty(&self) -> Result<()> {
